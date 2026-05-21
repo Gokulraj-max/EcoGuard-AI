@@ -803,10 +803,22 @@ if page == "📸 Classify Waste":
 elif page == "📊 Impact Dashboard":
     st.markdown("<h1 class='main-header'>📊 Environmental Impact Dashboard</h1>", unsafe_allow_html=True)
     
-    st.markdown("""
-    <h3 style="color: #2E7D32; margin-bottom: 15px;">📈 Overview</h3>
-    """, unsafe_allow_html=True)
+    # Add a clear data button in development
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.markdown("<h3 style='color: #2E7D32;'>📈 Overview</h3>", unsafe_allow_html=True)
+    with col2:
+        if st.button("🗑️ Clear Data", type="secondary", help="Clear all logged classifications"):
+            st.session_state.waste_history = []
+            st.session_state.total_impact = {
+                'co2_saved': 0.0,
+                'water_saved': 0.0,
+                'energy_saved': 0.0,
+                'landfill_diverted': 0.0
+            }
+            st.rerun()
     
+    # Overview metrics
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("📦 Items Classified", len(st.session_state.waste_history))
