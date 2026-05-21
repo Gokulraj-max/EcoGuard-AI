@@ -803,66 +803,68 @@ if page == "📸 Classify Waste":
 elif page == "📊 Impact Dashboard":
     st.markdown("<h1 class='main-header'>📊 Environmental Impact Dashboard</h1>", unsafe_allow_html=True)
     
-    # Add a clear data button in development
-    col1, col2 = st.columns([3, 1])
-    with col1:
+    # Clear data button at top
+    col_title, col_clear = st.columns([4, 1])
+    with col_title:
         st.markdown("<h3 style='color: #2E7D32;'>📈 Overview</h3>", unsafe_allow_html=True)
-    with col2:
-        if st.button("🗑️ Clear Data", type="secondary", help="Clear all logged classifications"):
-            st.session_state.waste_history = []
-            st.session_state.total_impact = {
-                'co2_saved': 0.0,
-                'water_saved': 0.0,
-                'energy_saved': 0.0,
-                'landfill_diverted': 0.0
-            }
-            st.rerun()
+    with col_clear:
+        if len(st.session_state.waste_history) > 0:
+            if st.button("🗑️ Clear All Data", type="secondary", use_container_width=True):
+                st.session_state.waste_history = []
+                st.session_state.total_impact = {
+                    'co2_saved': 0.0, 'water_saved': 0.0,
+                    'energy_saved': 0.0, 'landfill_diverted': 0.0
+                }
+                if 'current_prediction' in st.session_state:
+                    del st.session_state.current_prediction
+                st.rerun()
     
     # Overview metrics
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("📦 Items Classified", len(st.session_state.waste_history))
+        st.metric("📦 Items", len(st.session_state.waste_history))
     with col2:
-        st.metric("🌳 CO₂ Saved (kg)", f"{st.session_state.total_impact['co2_saved']:.2f}")
+        st.metric("🌳 CO₂ (kg)", f"{st.session_state.total_impact['co2_saved']:.2f}")
     with col3:
-        st.metric("💧 Water Saved (L)", f"{st.session_state.total_impact['water_saved']:.1f}")
+        st.metric("💧 Water (L)", f"{st.session_state.total_impact['water_saved']:.1f}")
     with col4:
-        st.metric("⚡ Energy Saved (kWh)", f"{st.session_state.total_impact['energy_saved']:.1f}")
+        st.metric("⚡ Energy (kWh)", f"{st.session_state.total_impact['energy_saved']:.1f}")
     
-    if st.session_state.waste_history:
-        # Create some basic charts
+    # Check if there's data
+    has_data = len(st.session_state.waste_history) > 0
+    
+    if has_data:
+        # Create charts
         waste_types = [item['waste_type'] for item in st.session_state.waste_history]
         df_waste = pd.DataFrame({'Type': waste_types}).value_counts().reset_index()
         df_waste.columns = ['Type', 'Count']
         
         st.markdown("---")
-        st.markdown("""
-        <h3 style="color: #2E7D32;">📊 Visual Analytics</h3>
-        """, unsafe_allow_html=True)
+        st.markdown("<h3 style='color: #2E7D32;'>📊 Visual Analytics</h3>", unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
-        
         with col1:
             fig_pie = px.pie(df_waste, values='Count', names='Type', 
                            title='Waste Distribution',
                            color_discrete_sequence=px.colors.qualitative.Set3)
-            st.plotly_chart(fig_pie, use_container_width=True)  # This one is actually fine!
-        
+            st.plotly_chart(fig_pie, use_container_width=True)
         with col2:
             fig_bar = px.bar(df_waste, x='Type', y='Count', 
                            title='Items by Type',
                            color='Type',
                            color_discrete_sequence=px.colors.qualitative.Set3)
             st.plotly_chart(fig_bar, use_container_width=True)
-        
-        # Detailed Impact Breakdown Table
-        st.markdown("---")
-        st.markdown("""
-        <div style="background: #E8F5E9; padding: 15px; border-radius: 10px; margin: 20px 0;">
-            <h3 style="margin: 0; color: #1B5E20;">📋 Detailed Impact Breakdown</h3>
-        </div>
-        """, unsafe_allow_html=True)
-        
+    
+    # Detailed Impact Breakdown - ALWAYS SHOW TABLE
+    st.markdown("---")
+    st.markdown("""
+    <div style="background: #E8F5E9; padding: 15px; border-radius: 10px; margin: 20px 0;">
+        <h3 style="margin: 0; color: #1B5E20;">📋 Detailed Impact Breakdown</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    if has_data:
+        # Build real data table
         impact_summary = {}
         for item in st.session_state.waste_history:
             waste_type = item['waste_type']
@@ -936,7 +938,7 @@ elif page == "📊 Impact Dashboard":
         
         st.markdown(html_table, unsafe_allow_html=True)
         
-        # Quick Stats Cards
+        # Quick Stats
         st.markdown("---")
         st.markdown("""
         <div style="background: #E8F5E9; padding: 15px; border-radius: 10px; margin: 20px 0;">
@@ -944,107 +946,95 @@ elif page == "📊 Impact Dashboard":
         </div>
         """, unsafe_allow_html=True)
         
-        if impact_summary:
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                most_recycled = max(impact_summary.items(), key=lambda x: x[1]['count'])
-                emoji = emoji_map.get(most_recycled[0], '♻️')
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            most_recycled = max(impact_summary.items(), key=lambda x: x[1]['count'])
+            emoji = emoji_map.get(most_recycled[0], '♻️')
+            st.markdown(f"""
+            <div class="quick-stat-card stat-blue">
+                <div class="stat-emoji">{emoji}</div>
+                <div class="stat-label">Most Recycled</div>
+                <div class="stat-value">{most_recycled[0].title()}</div>
+                <div class="stat-subtitle">{most_recycled[1]['count']} items</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            best_co2 = max(impact_summary.items(), key=lambda x: x[1]['total_co2'])
+            emoji = emoji_map.get(best_co2[0], '♻️')
+            st.markdown(f"""
+            <div class="quick-stat-card stat-green">
+                <div class="stat-emoji">{emoji}</div>
+                <div class="stat-label">Best CO₂ Saver</div>
+                <div class="stat-value">{best_co2[0].title()}</div>
+                <div class="stat-subtitle">{best_co2[1]['total_co2']:.2f} kg</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            if len(st.session_state.waste_history) > 0:
+                dates = [datetime.strptime(item['timestamp'], "%Y-%m-%d %H:%M:%S") 
+                        for item in st.session_state.waste_history]
+                if len(dates) > 1:
+                    date_range = (max(dates) - min(dates)).days or 1
+                    avg_per_day = total_items / date_range
+                else:
+                    avg_per_day = total_items
+                
                 st.markdown(f"""
-                <div class="quick-stat-card stat-blue">
-                    <div class="stat-emoji">{emoji}</div>
-                    <div class="stat-label">Most Recycled</div>
-                    <div class="stat-value">{most_recycled[0].title()}</div>
-                    <div class="stat-subtitle">{most_recycled[1]['count']} items</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                best_co2 = max(impact_summary.items(), key=lambda x: x[1]['total_co2'])
-                emoji = emoji_map.get(best_co2[0], '♻️')
-                st.markdown(f"""
-                <div class="quick-stat-card stat-green">
-                    <div class="stat-emoji">{emoji}</div>
-                    <div class="stat-label">Best CO₂ Saver</div>
-                    <div class="stat-value">{best_co2[0].title()}</div>
-                    <div class="stat-subtitle">{best_co2[1]['total_co2']:.2f} kg</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                if len(st.session_state.waste_history) > 0:
-                    dates = [datetime.strptime(item['timestamp'], "%Y-%m-%d %H:%M:%S") 
-                            for item in st.session_state.waste_history]
-                    if len(dates) > 1:
-                        date_range = (max(dates) - min(dates)).days or 1
-                        avg_per_day = total_items / date_range
-                    else:
-                        avg_per_day = total_items
-                    
-                    st.markdown(f"""
-                    <div class="quick-stat-card stat-orange">
-                        <div class="stat-emoji">📊</div>
-                        <div class="stat-label">Avg Items/Day</div>
-                        <div class="stat-value">{avg_per_day:.1f}</div>
-                        <div class="stat-subtitle">items per day</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            with col4:
-                env_score = (total_co2 * 10) + (total_water * 0.1) + (total_energy * 5)
-                st.markdown(f"""
-                <div class="quick-stat-card stat-purple">
-                    <div class="stat-emoji">🌟</div>
-                    <div class="stat-label">Eco Score</div>
-                    <div class="stat-value">{env_score:.0f}</div>
-                    <div class="stat-subtitle">eco points</div>
+                <div class="quick-stat-card stat-orange">
+                    <div class="stat-emoji">📊</div>
+                    <div class="stat-label">Avg Items/Day</div>
+                    <div class="stat-value">{avg_per_day:.1f}</div>
+                    <div class="stat-subtitle">items per day</div>
                 </div>
                 """, unsafe_allow_html=True)
         
-        # Download button
-        st.markdown("---")
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            export_data = []
-            for waste_type, data in impact_summary.items():
-                export_data.append({
-                    'Waste Type': waste_type,
-                    'Items': data['count'],
-                    'CO2 Saved (kg)': round(data['total_co2'], 2),
-                    'Water Saved (L)': round(data['total_water'], 1),
-                    'Energy Saved (kWh)': round(data['total_energy'], 1),
-                    'Landfill Diverted (kg)': round(data['total_landfill'], 2)
-                })
-            
-            export_df = pd.DataFrame(export_data)
-            csv = export_df.to_csv(index=False)
-            
-            st.download_button(
-                label="📥 Download Impact Report (CSV)",
-                data=csv,
-                file_name=f"ecoguard_impact_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
+        with col4:
+            env_score = (total_co2 * 10) + (total_water * 0.1) + (total_energy * 5)
+            st.markdown(f"""
+            <div class="quick-stat-card stat-purple">
+                <div class="stat-emoji">🌟</div>
+                <div class="stat-label">Eco Score</div>
+                <div class="stat-value">{env_score:.0f}</div>
+                <div class="stat-subtitle">eco points</div>
+            </div>
+            """, unsafe_allow_html=True)
     
     else:
-        st.info("👆 Start classifying waste to see your impact dashboard!")
-        
-        st.markdown("---")
-        st.markdown("""
-        <h3 style="color: #2E7D32;">📊 Sample Dashboard Preview</h3>
-        """, unsafe_allow_html=True)
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Items", "0")
-        with col2:
-            st.metric("CO₂ Saved", "0 kg")
-        with col3:
-            st.metric("Water Saved", "0 L")
-        with col4:
-            st.metric("Energy Saved", "0 kWh")
-
+        # Empty table
+        html_table = """
+        <table class="impact-table">
+        <thead>
+        <tr>
+            <th>Waste Type</th>
+            <th>Items</th>
+            <th>CO₂ Saved (kg)</th>
+            <th>Water Saved (L)</th>
+            <th>Energy Saved (kWh)</th>
+            <th>Landfill Diverted (kg)</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td colspan="6" style="text-align: center; padding: 30px; color: #757575;">
+                📦 No items classified yet<br>
+                <small>Go to <strong>Classify Waste</strong> to start tracking your impact!</small>
+            </td>
+        </tr>
+        <tr class="total-row">
+            <td>📊 <strong>TOTAL</strong></td>
+            <td><strong>0</strong></td>
+            <td><strong>0.00</strong></td>
+            <td><strong>0.0</strong></td>
+            <td><strong>0.0</strong></td>
+            <td><strong>0.00</strong></td>
+        </tr>
+        </tbody>
+        </table>
+        """
+        st.markdown(html_table, unsafe_allow_html=True)
 # ============================================
 # COMMUNITY CHALLENGES PAGE
 # ============================================
