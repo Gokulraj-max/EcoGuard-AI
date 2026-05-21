@@ -1,3 +1,5 @@
+# EcoGuard-AI
+<<<<<<< HEAD
 # 🌍 EcoGuard AI - Smart Waste Classification
 
 > AI-powered waste classification system that makes recycling smarter and tracks environmental impact
@@ -27,3 +29,6 @@ EcoGuard AI is an innovative solution for the AI For Good Hackathon that uses ma
 ```bash
 git clone https://github.com/yourusername/ecoguard-ai.git
 cd ecoguard-ai
+=======
+# EcoGuard-AI
+>>>>>>> f0a29b1b8b50420b4cc0b0f80de18a93cfd422a2
