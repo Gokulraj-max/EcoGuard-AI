@@ -6,3 +6,4 @@ libxrender1
 libgomp1
 libglx0
 libopengl0
+libegl1
