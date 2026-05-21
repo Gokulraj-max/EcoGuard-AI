@@ -219,13 +219,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ============================================
-# CLASSIFICATION FUNCTION (BUILT INTO APP.PY)
+# IMPROVED CLASSIFICATION FUNCTION
 # ============================================
 def classify_waste_image(image):
     """
-    Classify waste based on color and texture features from the image
+    Improved waste classification using multiple image features
     """
-    # Convert PIL Image to numpy array if needed
+    # Convert PIL Image to numpy array
     if isinstance(image, Image.Image):
         img_array = np.array(image)
     else:
@@ -238,25 +238,99 @@ def classify_waste_image(image):
         img_array = cv2.cvtColor(img_array, cv2.COLOR_RGBA2RGB)
     
     # Resize for processing
-    img_resized = cv2.resize(img_array, (224, 224))
+    img = cv2.resize(img_array, (224, 224))
     
-    # Convert to HSV
-    hsv = cv2.cvtColor(img_resized, cv2.COLOR_RGB2HSV)
+    # Convert to multiple color spaces
+    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+    lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     
-    # Calculate features
-    avg_rgb = np.mean(img_resized, axis=(0, 1))
+    # ---- FEATURE EXTRACTION ----
+    
+    # 1. Color features
+    avg_rgb = np.mean(img, axis=(0, 1))
     avg_hsv = np.mean(hsv, axis=(0, 1))
-    std_rgb = np.std(img_resized, axis=(0, 1))
-    
-    # Edge detection
-    gray = cv2.cvtColor(img_resized, cv2.COLOR_RGB2GRAY)
-    edges = cv2.Canny(gray, 50, 150)
-    edge_density = np.mean(edges) / 255.0
+    avg_lab = np.mean(lab, axis=(0, 1))
+    std_rgb = np.std(img, axis=(0, 1))
+    std_hsv = np.std(hsv, axis=(0, 1))
     
     r, g, b = avg_rgb
     h, s, v = avg_hsv
+    l_val, a_val, b_val = avg_lab
     
-    # Scoring system
+    # 2. Texture features
+    # Edge density
+    edges = cv2.Canny(gray, 50, 150)
+    edge_density = np.mean(edges) / 255.0
+    
+    # Laplacian variance (blurriness/sharpness)
+    laplacian = cv2.Laplacian(gray, cv2.CV_64F)
+    laplacian_var = np.var(laplacian)
+    
+    # GLCM-like texture (simplified)
+    # Calculate local binary pattern (simplified)
+    kernel = np.ones((3,3), np.uint8)
+    dilated = cv2.dilate(gray, kernel, iterations=1)
+    eroded = cv2.erode(gray, kernel, iterations=1)
+    morph_grad = np.mean(dilated - eroded)
+    
+    # 3. Shape features
+    # Threshold for binary image
+    _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    num_contours = len(contours)
+    total_area = sum(cv2.contourArea(c) for c in contours)
+    
+    # 4. Dominant colors
+    pixels = img.reshape(-1, 3).astype(np.float32)
+    # Simple k-means for dominant colors
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+    _, labels, centers = cv2.kmeans(pixels, 3, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+    centers = centers.astype(np.uint8)
+    
+    # Count pixels per cluster
+    unique, counts = np.unique(labels, return_counts=True)
+    dominant_colors = centers[unique]
+    dominant_percentages = counts / counts.sum()
+    
+    # 5. Color ratios
+    total_pixels = img.shape[0] * img.shape[1]
+    
+    # White pixels
+    white_mask = cv2.inRange(img, np.array([200, 200, 200]), np.array([255, 255, 255]))
+    white_ratio = np.sum(white_mask > 0) / total_pixels
+    
+    # Black/dark pixels
+    dark_mask = cv2.inRange(img, np.array([0, 0, 0]), np.array([50, 50, 50]))
+    dark_ratio = np.sum(dark_mask > 0) / total_pixels
+    
+    # Brown pixels
+    brown_mask = cv2.inRange(hsv, np.array([10, 30, 30]), np.array([30, 255, 200]))
+    brown_ratio = np.sum(brown_mask > 0) / total_pixels
+    
+    # Green pixels
+    green_mask = cv2.inRange(hsv, np.array([35, 40, 40]), np.array([85, 255, 255]))
+    green_ratio = np.sum(green_mask > 0) / total_pixels
+    
+    # Gray pixels
+    gray_mask = cv2.inRange(hsv, np.array([0, 0, 50]), np.array([180, 30, 200]))
+    gray_ratio = np.sum(gray_mask > 0) / total_pixels
+    
+    # Blue pixels
+    blue_mask = cv2.inRange(hsv, np.array([100, 50, 50]), np.array([130, 255, 255]))
+    blue_ratio = np.sum(blue_mask > 0) / total_pixels
+    
+    # Red/orange pixels
+    red_mask1 = cv2.inRange(hsv, np.array([0, 50, 50]), np.array([10, 255, 255]))
+    red_mask2 = cv2.inRange(hsv, np.array([170, 50, 50]), np.array([180, 255, 255]))
+    red_ratio = (np.sum(red_mask1 > 0) + np.sum(red_mask2 > 0)) / total_pixels
+    
+    # Yellow pixels
+    yellow_mask = cv2.inRange(hsv, np.array([20, 50, 50]), np.array([35, 255, 255]))
+    yellow_ratio = np.sum(yellow_mask > 0) / total_pixels
+    
+    # ---- SCORING SYSTEM ----
     scores = {
         'plastic': 0,
         'paper': 0,
@@ -266,85 +340,158 @@ def classify_waste_image(image):
         'e-waste': 0
     }
     
-    # PLASTIC: Colorful, smooth surface
-    if s > 40 and v > 100:
-        scores['plastic'] += 30
-    if edge_density < 0.15:
+    # ============ PLASTIC ============
+    # Usually colorful, smooth, synthetic-looking
+    if s > 35 and v > 80:  # Has color
         scores['plastic'] += 20
-    if 100 < r < 200 and 100 < g < 200 and 100 < b < 200:
+    if edge_density < 0.12:  # Smooth
         scores['plastic'] += 15
-    if v > 200 and s < 30:  # White plastic
+    if laplacian_var < 500:  # Less texture
+        scores['plastic'] += 10
+    # Common plastic colors
+    if red_ratio > 0.1 or blue_ratio > 0.1 or yellow_ratio > 0.1:
         scores['plastic'] += 15
+    if white_ratio > 0.3 and s < 30:  # White plastic
+        scores['plastic'] += 20
+    if 100 < r < 220 and 100 < g < 220 and 100 < b < 220:
+        scores['plastic'] += 10
     
-    # PAPER: Light, low saturation, some texture
-    if v > 150 and s < 50:
-        scores['paper'] += 35
-    if edge_density > 0.08:
-        scores['paper'] += 20
-    if r > 150 and g > 140 and b > 120:
-        scores['paper'] += 15
-    if (r > g and g > b) and s > 15:  # Brown paper/cardboard
+    # ============ PAPER ============
+    # Light colors, fibrous texture, moderate edges
+    if v > 140 and s < 50:  # Light, low saturation
         scores['paper'] += 25
+    if white_ratio > 0.3:
+        scores['paper'] += 20
+    if brown_ratio > 0.15 and s < 60:  # Cardboard
+        scores['paper'] += 25
+    if 0.08 < edge_density < 0.2:  # Some texture
+        scores['paper'] += 15
+    if laplacian_var > 300:  # More texture than plastic
+        scores['paper'] += 15
+    if morph_grad > 5:  # Textured surface
+        scores['paper'] += 10
+    # Paper/cardboard color check
+    if (r > 180 and g > 170 and b > 150) or (r > 140 and g > 120 and b > 90 and r > g > b):
+        scores['paper'] += 15
     
-    # GLASS: Bright, sharp edges, transparent look
-    if v > 150 and s < 40:
-        scores['glass'] += 25
-    if edge_density > 0.15:
-        scores['glass'] += 25
-    if std_rgb[0] > 50 or std_rgb[1] > 50 or std_rgb[2] > 50:
+    # ============ GLASS ============
+    # Transparent/reflective, sharp edges, high brightness variation
+    if s < 40 and v > 140:  # Low saturation, bright
         scores['glass'] += 20
-    if s < 20 and v > 180:  # Clear glass
+    if std_rgb[0] > 45 or std_rgb[1] > 45 or std_rgb[2] > 45:  # High variance
         scores['glass'] += 20
+    if edge_density > 0.14:  # Sharp edges
+        scores['glass'] += 15
+    if laplacian_var > 800:  # Sharp/high frequency
+        scores['glass'] += 15
+    if gray_ratio > 0.2 and s < 25:  # Clear glass looks gray
+        scores['glass'] += 15
+    if white_ratio > 0.4 and s < 20:  # Transparent/bright spots
+        scores['glass'] += 10
     
-    # METAL: Gray/silver, shiny, reflective
-    if s < 30 and v > 100:
-        scores['metal'] += 25
-    if abs(r - g) < 20 and abs(g - b) < 20 and abs(r - b) < 20:
+    # ============ METAL ============
+    # Shiny, reflective, gray/silver, high local contrast
+    if gray_ratio > 0.4 and s < 35:  # Silver/gray
         scores['metal'] += 30
-    if std_rgb[0] > 40 or std_rgb[1] > 40:
+    if abs(r - g) < 25 and abs(g - b) < 25 and abs(r - b) < 25:  # Neutral
         scores['metal'] += 20
-    if 120 < v < 200 and s < 25:
+    if std_rgb[0] > 40 or std_rgb[1] > 40:  # Shiny spots
         scores['metal'] += 15
+    if laplacian_var > 600:  # Shiny = high frequency
+        scores['metal'] += 15
+    if 100 < v < 200 and s < 30:  # Medium brightness, low color
+        scores['metal'] += 15
+    if dark_ratio < 0.05 and white_ratio < 0.3:  # Not too dark or white
+        scores['metal'] += 10
     
-    # ORGANIC: Brown/green tones, natural texture
-    if (r > g and g > b) or (g > r and g > b):
+    # ============ ORGANIC ============
+    # Brown/green/yellow, natural texture, irregular shapes
+    if brown_ratio > 0.15:  # Brown tones
         scores['organic'] += 35
-    if s > 25 and v < 180:
-        scores['organic'] += 25
-    if edge_density > 0.12:
-        scores['organic'] += 20
-    if 15 < h < 80 and s > 20:
-        scores['organic'] += 20
-    if r > 80 and g > 60 and b < 80:  # Brown/green
+    if green_ratio > 0.1:  # Green tones
+        scores['organic'] += 30
+    if yellow_ratio > 0.15 and s > 30:  # Yellow/organic
         scores['organic'] += 15
+    if edge_density > 0.1:  # Natural texture
+        scores['organic'] += 15
+    if morph_grad > 8:  # Irregular surface
+        scores['organic'] += 15
+    if num_contours > 10 and total_area > 5000:  # Complex shape
+        scores['organic'] += 10
+    if (r > g and g > b) and s > 20:  # Brownish
+        scores['organic'] += 15
+    if 15 < h < 50 and s > 25:  # Yellow-brown
+        scores['organic'] += 10
     
-    # E-WASTE: Dark, complex patterns, black
-    if v < 100:
-        scores['e-waste'] += 35
-    if edge_density > 0.2:
+    # ============ E-WASTE ============
+    # Dark, multiple colors, complex patterns, sharp transitions
+    if dark_ratio > 0.3:  # Dark areas
         scores['e-waste'] += 30
-    if r < 80 and g < 80 and b < 80:
+    if edge_density > 0.18:  # Many edges (circuits)
         scores['e-waste'] += 25
-    if std_rgb[0] > 50 or std_rgb[1] > 50:
+    if laplacian_var > 1000:  # Very high frequency detail
         scores['e-waste'] += 20
+    if num_contours > 20:  # Many small components
+        scores['e-waste'] += 15
+    if std_rgb[0] > 55 and std_rgb[1] > 55:  # High color variance
+        scores['e-waste'] += 15
+    if r < 100 and g < 100 and b < 100:  # Dark overall
+        scores['e-waste'] += 20
+    if blue_ratio > 0.05 and dark_ratio > 0.2:  # Blue LEDs on dark
+        scores['e-waste'] += 15
+    if red_ratio > 0.05 and dark_ratio > 0.2:  # Red indicators on dark
+        scores['e-waste'] += 10
+    
+    # ============ ADDITIONAL DISCRIMINATION ============
+    
+    # Prevent organic from being selected for non-organic items
+    # If image is very white/light with low saturation - likely paper or plastic
+    if white_ratio > 0.5 and s < 30:
+        scores['organic'] *= 0.3  # Reduce organic score
+        scores['paper'] += 20
+    
+    # If image is very dark - likely e-waste, not organic
+    if dark_ratio > 0.5:
+        scores['organic'] *= 0.2
+        scores['e-waste'] += 25
+    
+    # If high blue ratio - not organic
+    if blue_ratio > 0.2:
+        scores['organic'] *= 0.3
+        scores['plastic'] += 15
+    
+    # If very metallic/shiny - not organic
+    if laplacian_var > 900 and s < 30:
+        scores['organic'] *= 0.2
+        scores['metal'] += 20
+    
+    # If mouse/electronic device specific patterns
+    # Small, dark with some colored details
+    if dark_ratio > 0.3 and num_contours > 15 and edge_density > 0.15:
+        scores['e-waste'] += 20
+        scores['organic'] *= 0.3
     
     # Get prediction
     predicted_class = max(scores, key=scores.get)
+    max_score = scores[predicted_class]
     
-    # Calculate probabilities
+    # Calculate confidence
     total_score = sum(scores.values())
     if total_score > 0:
-        probabilities = {k: v/total_score for k, v in scores.items()}
+        confidence = max_score / total_score
     else:
-        probabilities = {k: 1/6 for k in scores}
+        confidence = 1/6
     
-    confidence = probabilities[predicted_class]
+    # Get probabilities
+    probabilities = {k: v/total_score if total_score > 0 else 1/6 for k, v in scores.items()}
     
     # Get top 3 predictions
     top_predictions = sorted(probabilities.items(), key=lambda x: x[1], reverse=True)[:3]
     
+    # Debug info (optional - remove for production)
+    st.session_state.debug_scores = scores
+    
     return predicted_class, confidence, probabilities, top_predictions
-
 # ============================================
 # ENVIRONMENTAL IMPACT FUNCTIONS
 # ============================================
