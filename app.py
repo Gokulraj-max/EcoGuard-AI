@@ -856,15 +856,12 @@ elif page == "📊 Impact Dashboard":
             st.plotly_chart(fig_bar, use_container_width=True)
     
     # Detailed Impact Breakdown - ALWAYS SHOW TABLE
+    # Detailed Impact Breakdown with HTML Table (FIXED)
     st.markdown("---")
-    st.markdown("""
-    <div style="background: #E8F5E9; padding: 15px; border-radius: 10px; margin: 20px 0;">
-        <h3 style="margin: 0; color: #1B5E20;">📋 Detailed Impact Breakdown</h3>
-    </div>
-    """, unsafe_allow_html=True)
+    st.subheader("📋 Detailed Impact Breakdown")
     
     if has_data:
-        # Build real data table
+        # Build data
         impact_summary = {}
         for item in st.session_state.waste_history:
             waste_type = item['waste_type']
@@ -884,20 +881,18 @@ elif page == "📊 Impact Dashboard":
             'metal': '🥫', 'organic': '🍎', 'e-waste': '💻'
         }
         
-        html_table = """
-        <table class="impact-table">
-        <thead>
-        <tr>
-            <th>Waste Type</th>
-            <th>Items</th>
-            <th>CO₂ Saved (kg)</th>
-            <th>Water Saved (L)</th>
-            <th>Energy Saved (kWh)</th>
-            <th>Landfill Diverted (kg)</th>
-        </tr>
-        </thead>
-        <tbody>
-        """
+        # Build HTML table - SIMPLIFIED AND FIXED
+        html = '<table style="width:100%; border-collapse:collapse; margin:20px 0; font-size:14px;">'
+        
+        # Header
+        html += '<tr style="background:#2E7D32; color:white;">'
+        html += '<th style="padding:12px; text-align:left;">Waste Type</th>'
+        html += '<th style="padding:12px; text-align:center;">Items</th>'
+        html += '<th style="padding:12px; text-align:center;">CO₂ (kg)</th>'
+        html += '<th style="padding:12px; text-align:center;">Water (L)</th>'
+        html += '<th style="padding:12px; text-align:center;">Energy (kWh)</th>'
+        html += '<th style="padding:12px; text-align:center;">Landfill (kg)</th>'
+        html += '</tr>'
         
         total_items = 0
         total_co2 = 0.0
@@ -905,38 +900,38 @@ elif page == "📊 Impact Dashboard":
         total_energy = 0.0
         total_landfill = 0.0
         
+        # Data rows
         for waste_type, data in impact_summary.items():
             emoji = emoji_map.get(waste_type, '♻️')
-            html_table += f"""
-            <tr>
-                <td><strong>{emoji} {waste_type.title()}</strong></td>
-                <td>{data['count']}</td>
-                <td>{data['total_co2']:.2f}</td>
-                <td>{data['total_water']:.1f}</td>
-                <td>{data['total_energy']:.1f}</td>
-                <td>{data['total_landfill']:.2f}</td>
-            </tr>
-            """
+            bg = '#FAFAFA' if len(impact_summary) % 2 == 0 else '#FFFFFF'
+            html += f'<tr style="background:{bg}; border-bottom:1px solid #E0E0E0;">'
+            html += f'<td style="padding:10px; font-weight:bold;">{emoji} {waste_type.title()}</td>'
+            html += f'<td style="padding:10px; text-align:center;">{data["count"]}</td>'
+            html += f'<td style="padding:10px; text-align:center;">{data["total_co2"]:.2f}</td>'
+            html += f'<td style="padding:10px; text-align:center;">{data["total_water"]:.1f}</td>'
+            html += f'<td style="padding:10px; text-align:center;">{data["total_energy"]:.1f}</td>'
+            html += f'<td style="padding:10px; text-align:center;">{data["total_landfill"]:.2f}</td>'
+            html += '</tr>'
+            
             total_items += data['count']
             total_co2 += data['total_co2']
             total_water += data['total_water']
             total_energy += data['total_energy']
             total_landfill += data['total_landfill']
         
-        html_table += f"""
-        <tr class="total-row">
-            <td>📊 <strong>TOTAL</strong></td>
-            <td><strong>{total_items}</strong></td>
-            <td><strong>{total_co2:.2f}</strong></td>
-            <td><strong>{total_water:.1f}</strong></td>
-            <td><strong>{total_energy:.1f}</strong></td>
-            <td><strong>{total_landfill:.2f}</strong></td>
-        </tr>
-        </tbody>
-        </table>
-        """
+        # Total row
+        html += '<tr style="background:#C8E6C9; font-weight:bold; border-top:2px solid #2E7D32;">'
+        html += '<td style="padding:10px;">📊 <strong>TOTAL</strong></td>'
+        html += f'<td style="padding:10px; text-align:center;"><strong>{total_items}</strong></td>'
+        html += f'<td style="padding:10px; text-align:center;"><strong>{total_co2:.2f}</strong></td>'
+        html += f'<td style="padding:10px; text-align:center;"><strong>{total_water:.1f}</strong></td>'
+        html += f'<td style="padding:10px; text-align:center;"><strong>{total_energy:.1f}</strong></td>'
+        html += f'<td style="padding:10px; text-align:center;"><strong>{total_landfill:.2f}</strong></td>'
+        html += '</tr>'
         
-        st.markdown(html_table, unsafe_allow_html=True)
+        html += '</table>'
+        
+        st.markdown(html, unsafe_allow_html=True)
         
         # Quick Stats
         st.markdown("---")
