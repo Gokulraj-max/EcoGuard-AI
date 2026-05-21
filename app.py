@@ -776,7 +776,7 @@ if page == "📸 Classify Waste":
             
             # Log button
             st.markdown("---")
-            if st.button("✅ Log This Classification", key="log_classification_btn", type="primary", use_container_width=True):
+            if st.button("✅ Log This Classification", key="log_classification_main_btn", type="primary", use_container_width=True):
                 classification_record = {
                     'waste_type': pred['class'],
                     'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1369,7 +1369,7 @@ elif page == "📊 Impact Dashboard":
         st.markdown("<h3 style='color: #2E7D32; margin-bottom: 15px;'>📈 Overview</h3>", unsafe_allow_html=True)
     with col_clear:
         if len(st.session_state.waste_history) > 0:
-            if st.button("🗑️ Clear Data", type="secondary", use_container_width=True):
+            if st.button("🗑️ Clear Data", key="clear_data_dashboard_btn", type="secondary", use_container_width=True):
                 st.session_state.waste_history = []
                 st.session_state.total_impact = {
                     'co2_saved': 0.0, 'water_saved': 0.0,
@@ -1661,7 +1661,7 @@ elif page == "📊 Impact Dashboard":
         st.markdown("<h3 style='color: #2E7D32;'>📈 Overview</h3>", unsafe_allow_html=True)
     with col_clear:
         if len(st.session_state.waste_history) > 0:
-            if st.button("🗑️ Clear All Data", type="secondary", use_container_width=True):
+            if st.button("🔄 Clear All Data", key="btn_sidebar_clear", use_container_width=True):
                 st.session_state.waste_history = []
                 st.session_state.total_impact = {
                     'co2_saved': 0.0, 'water_saved': 0.0,
