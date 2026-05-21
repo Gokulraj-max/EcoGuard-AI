@@ -541,7 +541,7 @@ if page == "📸 Classify Waste":
         
         if image_to_process:
             image = Image.open(image_to_process)
-            st.image(image, caption="Uploaded Image", use_column_width=True)
+            st.image(image, caption="Uploaded Image", use_container_width=True)
             
             if st.button("🔍 Classify Waste", type="primary", use_container_width=True):
                 with st.spinner("🔄 Analyzing image features..."):
@@ -687,7 +687,7 @@ elif page == "📊 Impact Dashboard":
             fig_pie = px.pie(df_waste, values='Count', names='Type', 
                            title='Waste Distribution',
                            color_discrete_sequence=px.colors.qualitative.Set3)
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(fig_pie, use_container_width=True)  # This one is actually fine!
         
         with col2:
             fig_bar = px.bar(df_waste, x='Type', y='Count', 
